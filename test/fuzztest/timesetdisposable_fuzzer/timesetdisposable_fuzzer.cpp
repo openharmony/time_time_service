@@ -26,6 +26,18 @@ using namespace OHOS::MiscServices;
 namespace {
 constexpr size_t MAX_INPUT_SIZE = 1024;
 constexpr size_t MIN_INPUT_SIZE = 1;
+constexpr int TOGGLE_COUNT = 100;
+constexpr size_t MAX_TOGGLE_BYTES = 100;
+constexpr size_t MIN_REPEAT_SIZE = 2;
+constexpr size_t MIN_MULTIPLE_INSTANCES_SIZE = 2;
+constexpr size_t MIN_ALL_PROPERTIES_SIZE = 4;
+constexpr size_t MIN_STATE_CONSISTENCY_SIZE = 1;
+constexpr uint64_t INTERVAL_UNIT_MS = 1000;
+constexpr uint64_t MIN_INTERVAL_MS = 5000;
+constexpr int EVEN_DIVISOR = 2;
+constexpr int BOOL_FALSE_VALUE = 0;
+constexpr int BOOL_TRUE_VALUE = 1;
+constexpr int BOOL_NON_ZERO_VALUE = 255;
 
 /**
  * Mock implementation of ITimerInfo for testing SetDisposable
@@ -106,8 +118,8 @@ void TestSetDisposableToggle()
     timerInfo->SetDisposable(false);
 
     // Rapid toggling
-    for (int i = 0; i < 100; i++) {
-        timerInfo->SetDisposable(i % 2 == 0);
+    for (int i = 0; i < TOGGLE_COUNT; i++) {
+        timerInfo->SetDisposable(i % EVEN_DIVISOR == 0);
     }
 }
 
@@ -126,8 +138,8 @@ void TestSetDisposableWithFuzzerData(const uint8_t* data, size_t size)
     }
 
     // Use each byte of fuzzer data as a boolean value
-    for (size_t i = 0; i < size && i < 100; i++) {
-        bool disposableValue = (data[i] % 2 == 0);
+    for (size_t i = 0; i < size && i < MAX_TOGGLE_BYTES; i++) {
+        bool disposableValue = (data[i] % EVEN_DIVISOR == 0);
         timerInfo->SetDisposable(disposableValue);
     }
 }
@@ -138,7 +150,7 @@ void TestSetDisposableWithFuzzerData(const uint8_t* data, size_t size)
  */
 void TestSetDisposableWithRepeat(const uint8_t* data, size_t size)
 {
-    if (data == nullptr || size < 2) {
+    if (data == nullptr || size < MIN_REPEAT_SIZE) {
         return;
     }
 
@@ -156,8 +168,8 @@ void TestSetDisposableWithRepeat(const uint8_t* data, size_t size)
     timerInfo->SetDisposable(true);
 
     // Toggle repeat and disposable with fuzzer data
-    bool repeatValue = (data[0] % 2 == 0);
-    bool disposableValue = (data[1] % 2 == 0);
+    bool repeatValue = (data[0] % EVEN_DIVISOR == 0);
+    bool disposableValue = (data[1] % EVEN_DIVISOR == 0);
 
     timerInfo->SetRepeat(repeatValue);
     timerInfo->SetDisposable(disposableValue);
@@ -175,7 +187,7 @@ void TestSetDisposableWithRepeat(const uint8_t* data, size_t size)
  */
 void TestSetDisposableMultipleInstances(const uint8_t* data, size_t size)
 {
-    if (data == nullptr || size < 2) {
+    if (data == nullptr || size < MIN_MULTIPLE_INSTANCES_SIZE) {
         return;
     }
 
@@ -192,8 +204,8 @@ void TestSetDisposableMultipleInstances(const uint8_t* data, size_t size)
     timer2->SetDisposable(false);
 
     // Use fuzzer data to set disposable
-    timer1->SetDisposable(data[0] % 2 == 0);
-    timer2->SetDisposable(data[1] % 2 == 0);
+    timer1->SetDisposable(data[0] % EVEN_DIVISOR == 0);
+    timer2->SetDisposable(data[1] % EVEN_DIVISOR == 0);
 }
 
 /**
@@ -213,9 +225,9 @@ void TestSetDisposableBoundary()
     timerInfo->SetDisposable(false);
 
     // Test with various integer values cast to bool
-    timerInfo->SetDisposable(static_cast<bool>(0));      // false
-    timerInfo->SetDisposable(static_cast<bool>(1));      // true
-    timerInfo->SetDisposable(static_cast<bool>(255));    // true
+    timerInfo->SetDisposable(static_cast<bool>(BOOL_FALSE_VALUE));      // false
+    timerInfo->SetDisposable(static_cast<bool>(BOOL_TRUE_VALUE));       // true
+    timerInfo->SetDisposable(static_cast<bool>(BOOL_NON_ZERO_VALUE));   // true
     timerInfo->SetDisposable(static_cast<bool>(-1));     // true
 }
 
@@ -224,7 +236,7 @@ void TestSetDisposableBoundary()
  */
 void TestSetDisposableStateConsistency(const uint8_t* data, size_t size)
 {
-    if (data == nullptr || size < 1) {
+    if (data == nullptr || size < MIN_STATE_CONSISTENCY_SIZE) {
         return;
     }
 
@@ -234,7 +246,7 @@ void TestSetDisposableStateConsistency(const uint8_t* data, size_t size)
     }
 
     // Set disposable with fuzzer data
-    bool targetValue = (data[0] % 2 == 0);
+    bool targetValue = (data[0] % EVEN_DIVISOR == 0);
     timerInfo->SetDisposable(targetValue);
 
     // Set again to test idempotency
@@ -246,7 +258,7 @@ void TestSetDisposableStateConsistency(const uint8_t* data, size_t size)
  */
 void TestSetDisposableWithAllProperties(const uint8_t* data, size_t size)
 {
-    if (data == nullptr || size < 4) {
+    if (data == nullptr || size < MIN_ALL_PROPERTIES_SIZE) {
         return;
     }
 
@@ -257,9 +269,9 @@ void TestSetDisposableWithAllProperties(const uint8_t* data, size_t size)
 
     // Set all properties including disposable
     timerInfo->SetType(static_cast<int>(data[0]));
-    timerInfo->SetRepeat(data[1] % 2 == 0);
-    timerInfo->SetInterval(static_cast<uint64_t>(data[2]) * 1000 + 5000);  // >= 5000ms per spec
-    timerInfo->SetDisposable(data[3] % 2 == 0);
+    timerInfo->SetRepeat(data[1] % EVEN_DIVISOR == 0);
+    timerInfo->SetInterval(static_cast<uint64_t>(data[2]) * INTERVAL_UNIT_MS + MIN_INTERVAL_MS);  // >= 5000ms per spec
+    timerInfo->SetDisposable(data[3] % EVEN_DIVISOR == 0);
 }
 
 } // namespace
@@ -290,12 +302,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     TestSetDisposableWithFuzzerData(data, size);
 
     // Test SetDisposable with repeat flag interaction
-    if (size >= 2) {
+    if (size >= MIN_REPEAT_SIZE) {
         TestSetDisposableWithRepeat(data, size);
     }
 
     // Test SetDisposable with multiple instances
-    if (size >= 2) {
+    if (size >= MIN_MULTIPLE_INSTANCES_SIZE) {
         TestSetDisposableMultipleInstances(data, size);
     }
 
@@ -303,12 +315,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     TestSetDisposableBoundary();
 
     // Test SetDisposable state consistency
-    if (size >= 1) {
+    if (size >= MIN_STATE_CONSISTENCY_SIZE) {
         TestSetDisposableStateConsistency(data, size);
     }
 
     // Test SetDisposable with all properties
-    if (size >= 4) {
+    if (size >= MIN_ALL_PROPERTIES_SIZE) {
         TestSetDisposableWithAllProperties(data, size);
     }
 
