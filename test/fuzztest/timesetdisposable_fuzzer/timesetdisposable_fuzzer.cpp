@@ -273,7 +273,8 @@ void TestSetDisposableWithAllProperties(const uint8_t* data, size_t size)
     // Set all properties including disposable
     timerInfo->SetType(static_cast<int>(data[TYPE_INDEX]));
     timerInfo->SetRepeat(data[REPEAT_INDEX] % EVEN_DIVISOR == 0);
-    timerInfo->SetInterval(static_cast<uint64_t>(data[INTERVAL_INDEX]) * INTERVAL_UNIT_MS + MIN_INTERVAL_MS);  // >= 5000ms per spec
+    timerInfo->SetInterval(static_cast<uint64_t>(data[INTERVAL_INDEX]) * INTERVAL_UNIT_MS +
+        MIN_INTERVAL_MS);  // >= 5000ms per spec
     timerInfo->SetDisposable(data[DISPOSABLE_INDEX] % EVEN_DIVISOR == 0);
 }
 
