@@ -27,6 +27,10 @@ using namespace OHOS::MiscServices;
 namespace {
 constexpr size_t MAX_INPUT_SIZE = 1024;
 constexpr size_t MAX_STRING_LEN = 512;
+constexpr size_t MIN_MULTIPLE_INSTANCES_SIZE = 2;
+constexpr size_t MIN_NULL_CHARS_SIZE = 4;
+constexpr size_t MAX_SPECIAL_FUZZ_NAME_LEN = 32;
+constexpr size_t MAX_MULTI_INSTANCE_FUZZ_NAME_LEN = 64;
 
 /**
  * Mock implementation of ITimerInfo for testing SetName
@@ -124,7 +128,8 @@ void TestSetNameWithSpecialChars(const uint8_t* data, size_t size)
 
     // Test with fuzzer data
     if (size > 0) {
-        std::string fuzzName(reinterpret_cast<const char*>(data), std::min(size, static_cast<size_t>(32)));
+        std::string fuzzName(reinterpret_cast<const char*>(data),
+            std::min(size, static_cast<size_t>(MAX_SPECIAL_FUZZ_NAME_LEN)));
         timerInfo->SetName(fuzzName);
     }
 }
@@ -156,14 +161,13 @@ void TestSetNameBoundary()
  */
 void TestSetNameMultipleInstances(const uint8_t* data, size_t size)
 {
-    if (data == nullptr || size < 2) {
+    if (data == nullptr || size < MIN_MULTIPLE_INSTANCES_SIZE) {
         return;
     }
 
     // Create multiple timer instances
     auto timer1 = std::make_shared<TestTimerInfo>();
     auto timer2 = std::make_shared<TestTimerInfo>();
-
     if (timer1 == nullptr || timer2 == nullptr) {
         return;
     }
@@ -177,7 +181,7 @@ void TestSetNameMultipleInstances(const uint8_t* data, size_t size)
     timer2->SetName("Timer2");
 
     // Use fuzzer data
-    size_t len = std::min(size / 2, static_cast<size_t>(64));
+    size_t len = std::min(size / 2, static_cast<size_t>(MAX_MULTI_INSTANCE_FUZZ_NAME_LEN));
     if (len > 0) {
         std::string fuzzName(reinterpret_cast<const char*>(data), len);
         timer1->SetName(fuzzName);
@@ -189,7 +193,7 @@ void TestSetNameMultipleInstances(const uint8_t* data, size_t size)
  */
 void TestSetNameWithNullChars(const uint8_t* data, size_t size)
 {
-    if (data == nullptr || size < 4) {
+    if (data == nullptr || size < MIN_NULL_CHARS_SIZE) {
         return;
     }
 
@@ -239,12 +243,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     TestSetNameBoundary();
 
     // Test SetName with multiple instances
-    if (size >= 2) {
+    if (size >= MIN_MULTIPLE_INSTANCES_SIZE) {
         TestSetNameMultipleInstances(data, size);
     }
 
     // Test SetName with null characters
-    if (size >= 4) {
+    if (size >= MIN_NULL_CHARS_SIZE) {
         TestSetNameWithNullChars(data, size);
     }
 

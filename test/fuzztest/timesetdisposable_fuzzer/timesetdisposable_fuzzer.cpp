@@ -38,6 +38,10 @@ constexpr int EVEN_DIVISOR = 2;
 constexpr int BOOL_FALSE_VALUE = 0;
 constexpr int BOOL_TRUE_VALUE = 1;
 constexpr int BOOL_NON_ZERO_VALUE = 255;
+constexpr size_t TYPE_INDEX = 0;
+constexpr size_t REPEAT_INDEX = 1;
+constexpr size_t INTERVAL_INDEX = 2;
+constexpr size_t DISPOSABLE_INDEX = 3;
 
 /**
  * Mock implementation of ITimerInfo for testing SetDisposable
@@ -194,7 +198,6 @@ void TestSetDisposableMultipleInstances(const uint8_t* data, size_t size)
     // Create multiple timer instances
     auto timer1 = std::make_shared<TestTimerInfo>();
     auto timer2 = std::make_shared<TestTimerInfo>();
-
     if (timer1 == nullptr || timer2 == nullptr) {
         return;
     }
@@ -204,8 +207,8 @@ void TestSetDisposableMultipleInstances(const uint8_t* data, size_t size)
     timer2->SetDisposable(false);
 
     // Use fuzzer data to set disposable
-    timer1->SetDisposable(data[0] % EVEN_DIVISOR == 0);
-    timer2->SetDisposable(data[1] % EVEN_DIVISOR == 0);
+    timer1->SetDisposable(data[TYPE_INDEX] % EVEN_DIVISOR == 0);
+    timer2->SetDisposable(data[REPEAT_INDEX] % EVEN_DIVISOR == 0);
 }
 
 /**
@@ -268,10 +271,10 @@ void TestSetDisposableWithAllProperties(const uint8_t* data, size_t size)
     }
 
     // Set all properties including disposable
-    timerInfo->SetType(static_cast<int>(data[0]));
-    timerInfo->SetRepeat(data[1] % EVEN_DIVISOR == 0);
-    timerInfo->SetInterval(static_cast<uint64_t>(data[2]) * INTERVAL_UNIT_MS + MIN_INTERVAL_MS);  // >= 5000ms per spec
-    timerInfo->SetDisposable(data[3] % EVEN_DIVISOR == 0);
+    timerInfo->SetType(static_cast<int>(data[TYPE_INDEX]));
+    timerInfo->SetRepeat(data[REPEAT_INDEX] % EVEN_DIVISOR == 0);
+    timerInfo->SetInterval(static_cast<uint64_t>(data[INTERVAL_INDEX]) * INTERVAL_UNIT_MS + MIN_INTERVAL_MS);  // >= 5000ms per spec
+    timerInfo->SetDisposable(data[DISPOSABLE_INDEX] % EVEN_DIVISOR == 0);
 }
 
 } // namespace
