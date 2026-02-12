@@ -841,7 +841,7 @@ bool TimerManager::IsPowerOnTimer(std::shared_ptr<TimerInfo> timerInfo)
     if (timerInfo != nullptr) {
         return (std::find(powerOnApps_.begin(), powerOnApps_.end(), timerInfo->name) != powerOnApps_.end() ||
             std::find(powerOnApps_.begin(), powerOnApps_.end(), timerInfo->bundleName) != powerOnApps_.end()) &&
-            (timerInfo->type == RTC || timerInfo->type == RTC_WAKEUP);
+            CheckNeedRecoverOnReboot(timerInfo->bundleName, timerInfo->type, timerInfo->autoRestore);
     }
     return false;
 }
