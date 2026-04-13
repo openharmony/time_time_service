@@ -81,6 +81,9 @@ public:
     void ShutDownReschedulePowerOnTimer();
     #endif
     #endif
+    #ifdef RUNNING_LOCK_OPTIMIZE
+    void InitLockOptimizer();
+    #endif
 
 private:
 #ifdef RUNNING_LOCK_OPTIMIZE
@@ -123,6 +126,7 @@ private:
     bool AdjustTimersBasedOnDeviceIdle();
     void HandleRepeatTimer(const std::shared_ptr<TimerInfo> &timer, std::chrono::steady_clock::time_point nowElapsed);
     inline bool CheckNeedRecoverOnReboot(std::string bundleName, int type, bool autoRestore);
+    std::string GetWantString(int64_t timerId);
     #ifdef POWER_MANAGER_ENABLE
     void HandleRunningLock(const std::shared_ptr<Batch> &firstWakeup);
     void AddRunningLock(long long holdLockTime);
@@ -189,7 +193,7 @@ private:
     std::mutex runningLockMutex_;
     std::shared_ptr<PowerMgr::RunningLock> runningLock_;
     std::atomic<int64_t> lockExpiredTime_{0};
-    #endif
+#endif
 }; // timer_manager
 } // MiscServices
 } // OHOS

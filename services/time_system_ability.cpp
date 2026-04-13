@@ -208,6 +208,9 @@ void TimeSystemAbility::OnStart()
     #ifdef SET_AUTO_REBOOT_ENABLE
     AddSystemAbilityListener(POWER_MANAGER_SERVICE_ID);
     #endif
+    #ifdef RUNNING_LOCK_OPTIMIZE
+    AddSystemAbilityListener(APP_MGR_SERVICE_ID);
+    #endif
     AddSystemAbilityListener(COMM_NET_CONN_MANAGER_SYS_ABILITY_ID);
     #ifdef MULTI_ACCOUNT_ENABLE
     AddSystemAbilityListener(SUBSYS_ACCOUNT_SYS_ABILITY_ID_BEGIN);
@@ -246,6 +249,17 @@ void TimeSystemAbility::OnAddSystemAbility(int32_t systemAbilityId, const std::s
             AddSystemAbilityListener(BUNDLE_MGR_SERVICE_SYS_ABILITY_ID);
             RemoveSystemAbilityListener(ABILITY_MGR_SERVICE_ID);
             break;
+        #ifdef RUNNING_LOCK_OPTIMIZE
+        case APP_MGR_SERVICE_ID:
+            {
+                auto timerManager = TimerManager::GetInstance();
+                if (timerManager != nullptr) {
+                    timerManager->InitLockOptimizer();
+                }
+                RemoveSystemAbilityListener(APP_MGR_SERVICE_ID);
+            }
+            break;
+        #endif
         case BUNDLE_MGR_SERVICE_SYS_ABILITY_ID:
             RecoverTimer();
             RemoveSystemAbilityListener(BUNDLE_MGR_SERVICE_SYS_ABILITY_ID);
