@@ -50,6 +50,10 @@ TimerLockOptimizer::TimerLockOptimizer(TimerManager* manager) : manager_(manager
 void TimerLockOptimizer::Init()
 {
     TIME_HILOGI(TIME_MODULE_SERVICE, "Running lock optimize enable, start init TimerLockOptimizer");
+    if (isInitialized_.load()) {
+        TIME_HILOGI(TIME_MODULE_SERVICE, "TimerLockOptimizer already initialized");
+        return;
+    }
     std::weak_ptr<TimerLockOptimizer> weakThis = weak_from_this();
     bool registerResult = TimerAppStateObserver::GetInstance()->Register({},
         [weakThis = std::move(weakThis)](const std::string &name, bool isRunning) {
@@ -64,14 +68,6 @@ void TimerLockOptimizer::Init()
     QueryAllRunningApps();
     isInitialized_.store(true);
     TIME_HILOGI(TIME_MODULE_SERVICE, "Init TimerLockOptimizer end");
-}
-
-void TimerLockOptimizer::EnsureInitialized()
-{
-    if (isInitialized_.load()) {
-        return;
-    }
-    Init();
 }
 
 void TimerLockOptimizer::QueryAllRunningApps()
@@ -103,13 +99,56 @@ void TimerLockOptimizer::QueryAllRunningApps()
 // Section 2: Public API
 // =============================================================================
 
+std::string TimerLockOptimizer::ExtractBundleNameFromWantAgent(const std::shared_ptr<WantAgent>& wantAgent)
+{
+    auto want = WantAgentHelper::GetWant(wantAgent);
+    if (want == nullptr) {
+        return "";
+    }
+    if (!IsAbilityStartingOperation(WantAgentHelper::GetType(wantAgent))) {
+        return "";
+    }
+    return want->GetElement().GetBundleName();
+}
+
+// Get target bundleName from WantAgent (the app to be started, not the creator)
+// Returns empty string for non-ability-starting operations (SEND_COMMON_EVENT, UNKNOWN_TYPE)
+// When want == nullptr (multi-user scenario), attempts to get want from database
+std::string TimerLockOptimizer::GetTargetBundleName(const std::shared_ptr<TimerInfo>& timer)
+{
+    if (timer == nullptr) {
+        return "";
+    }
+    auto want = WantAgentHelper::GetWant(timer->wantAgent);
+    if (want != nullptr) {
+        return ExtractBundleNameFromWantAgent(timer->wantAgent);
+    }
+    // want == nullptr: multi-user scenario, get bundleName from database
+    return GetBundleNameMultiUser(timer);
+}
+
+std::string TimerLockOptimizer::GetBundleNameMultiUser(const std::shared_ptr<TimerInfo>& timer)
+{
+    if (manager_ == nullptr) {
+        TIME_HILOGE(TIME_MODULE_SERVICE, "manager_ is nullptr");
+        return "";
+    }
+    #ifdef MULTI_ACCOUNT_ENABLE
+    if (manager_->CheckUserIdForNotify(timer) != E_TIME_OK) {
+        return "";
+    }
+    #endif
+    auto wantStr = manager_->GetWantString(timer->id);
+    if (wantStr.empty()) {
+        return "";
+    }
+    auto newWantAgent = WantAgentHelper::FromString(wantStr);
+    return ExtractBundleNameFromWantAgent(newWantAgent);
+}
+
 void TimerLockOptimizer::BatchAcquireRunningLock(
     const std::vector<std::shared_ptr<TimerInfo>> &triggerList)
 {
-    // Lazy initialization: AppMgr may not be ready during TimerManager startup,
-    // so we delay registration until first use when wakeup timers are triggered.
-    EnsureInitialized();
-
     int64_t bootTime = TimeUtils::GetBootTimeNs().time_since_epoch().count();
 
     // Merge new timer information, sorts by expiration time,
@@ -127,11 +166,11 @@ void TimerLockOptimizer::BatchAcquireRunningLock(
         }
     }
 
-    if (maxExpireTime > 0 && manager_ != nullptr) {
+    if (maxExpireTime > 0) {
         TIME_HILOGD(TIME_MODULE_SERVICE,
                     "BatchAcquireRunningLock: maxExpireTime=%{public}" PRId64 ",bundleName=%{public}s",
                     maxExpireTime, bundleName.c_str());
-        manager_->AddRunningLock(maxExpireTime - bootTime);
+        AcquireRunningLockInternal(maxExpireTime, bootTime);
     }
 }
 
@@ -199,23 +238,28 @@ void TimerLockOptimizer::RecalcLockForBundle(const std::string &bundleName)
     if (newMaxExpireTime == 0 && !lastRemovedBundleEmpty) {
         newMaxExpireTime = currentBootTime + TimerManager::GetDefaultRunningLockDuration();
     }
-    if (newMaxExpireTime > 0 && manager_ != nullptr) {
-        manager_->AddRunningLock(newMaxExpireTime - currentBootTime);
-    }
-}
-
-int64_t TimerLockOptimizer::GetMaxLockExpireTime()
-{
-    std::lock_guard<std::mutex> lock(lockInfosMutex_);
-    if (lockInfos_.empty()) {
-        return 0;
-    }
-    return lockInfos_.front().lockExpireTime;
+    AcquireRunningLockInternal(newMaxExpireTime, currentBootTime);
 }
 
 // =============================================================================
 // Section 3: Private Helper Methods
 // =============================================================================
+
+void TimerLockOptimizer::AcquireRunningLockInternal(int64_t expireTime, int64_t bootTime)
+{
+    if (manager_ == nullptr) {
+        TIME_HILOGD(TIME_MODULE_SERVICE, "AcquireRunningLockInternal: manager_ is nullptr");
+        return;
+    }
+    if (expireTime <= manager_->lockExpiredTime_.load()) {
+        TIME_HILOGD(TIME_MODULE_SERVICE,
+                    "AcquireRunningLockInternal: expireTime=%{public}" PRId64 " <= lockExpiredTime=%{public}" PRId64,
+                    expireTime, manager_->lockExpiredTime_.load());
+        return;
+    }
+    timerLockExpireTime_.store(expireTime);
+    manager_->AddRunningLock(expireTime - bootTime);
+}
 
 bool TimerLockOptimizer::IsAbilityStartingOperation(WantAgentConstant::OperationType operType)
 {
@@ -240,12 +284,12 @@ void TimerLockOptimizer::MergeNewTimers(
         int64_t lockDuration = TimerManager::GetDefaultRunningLockDuration();
 
         if (timer->wantAgent) {
-            WantAgentHelper::GetBundleName(timer->wantAgent, newInfo.wantBundleName);
-
-            // Apply longer lock duration for ability-starting operations with non-empty bundle name
-            if (!newInfo.wantBundleName.empty() &&
-                IsAbilityStartingOperation(WantAgentHelper::GetType(timer->wantAgent))) {
+            auto wantBundleName = GetTargetBundleName(timer);
+            // Apply longer lock duration for non-empty bundle name (ability-starting operations)
+            if (!wantBundleName.empty()) {
+                newInfo.wantBundleName = wantBundleName;
                 lockDuration = APP_START_RUNNING_LOCK_DURATION_NS;
+                targetBundleNameCache_[timer->id] = wantBundleName;
             }
         }
 

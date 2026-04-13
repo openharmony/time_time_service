@@ -157,10 +157,9 @@ TimerManager* TimerManager::GetInstance()
             DEFAULT_RUNNING_LOCK_DURATION_NS =
                 TimeFileUtils::GetIntParameter(RUNNING_LOCK_DURATION_PARAMETER,
                                                USE_LOCK_ONE_SEC_IN_NANO);
-            #endif
             #ifdef RUNNING_LOCK_OPTIMIZE
             instance_->lockOptimizer_ = std::make_shared<TimerLockOptimizer>(instance_);
-            // Note: Lazy initialization in BatchAcquireRunningLock when first needed
+            #endif
             #endif
         }
     }
@@ -737,6 +736,16 @@ TimerManager::~TimerManager()
     #endif
 }
 
+#ifdef RUNNING_LOCK_OPTIMIZE
+void TimerManager::InitLockOptimizer()
+{
+    if (lockOptimizer_ == nullptr) {
+        lockOptimizer_ = std::make_shared<TimerLockOptimizer>(this);
+    }
+    lockOptimizer_->Init();
+}
+#endif
+
 // needs to acquire the lock `mutex_` before calling this method
 void TimerManager::TriggerIdleTimer()
 {
@@ -1122,13 +1131,10 @@ void TimerManager::DeliverTimersLocked(const std::vector<std::shared_ptr<TimerIn
             }
         }
         if (timer->wantAgent) {
-            #ifdef RUNNING_LOCK_OPTIMIZE
-            // Pre-fetch bundleName before NotifyWantAgent to avoid potential clearing
-            std::string wantBundleName;
-            WantAgentHelper::GetBundleName(timer->wantAgent, wantBundleName);
-            #endif
             bool notifyResult = NotifyWantAgent(timer);
             #ifdef RUNNING_LOCK_OPTIMIZE
+            // Get target app bundleName from cache (stored during BatchAcquireRunningLock)
+            std::string wantBundleName = lockOptimizer_->GetBundleNameFromCache(timer->id);
             if (lockOptimizer_->IsAppRunning(wantBundleName) || !notifyResult) {
                 lockOptimizer_->RecalcLockForBundle(wantBundleName);
             }
@@ -1146,6 +1152,9 @@ void TimerManager::DeliverTimersLocked(const std::vector<std::shared_ptr<TimerIn
             DestroyTimer(timer->id);
         }
     }
+    #ifdef RUNNING_LOCK_OPTIMIZE
+    lockOptimizer_->ClearBundleNameCache();
+    #endif
 }
 
 void TimerManager::UpdateTimerStateInStorage(const std::shared_ptr<TimerInfo> &timer)
@@ -1166,7 +1175,7 @@ void TimerManager::UpdateTimerStateInStorage(const std::shared_ptr<TimerInfo> &t
     #endif
 }
 
-std::string GetWantString(int64_t timerId)
+std::string TimerManager::GetWantString(int64_t timerId)
 {
     #ifdef RDB_ENABLE
     OHOS::NativeRdb::RdbPredicates holdRdbPredicates(HOLD_ON_REBOOT);
@@ -1655,12 +1664,11 @@ void TimerManager::HandleRunningLock(const std::shared_ptr<Batch> &firstWakeup)
         // Compare with TimerLockOptimizer's max expire time
         // Only update lock if the requested time extends beyond current max
         if (lockOptimizer_ != nullptr) {
-            int64_t timerLockMaxExpireTime = lockOptimizer_->GetMaxLockExpireTime();
-            int64_t requestedExpireTime = currentTime + holdLockTime;
-            if (requestedExpireTime <= timerLockMaxExpireTime) {
+            int64_t timerLockMaxExpireTime = lockOptimizer_->GetTimerLockExpireTime();
+            if (lockExpiredTime_ <= timerLockMaxExpireTime) {
                 TIME_HILOGD(TIME_MODULE_SERVICE,
                     "Skip lock update: requested=%{public}" PRId64 " <= max=%{public}" PRId64,
-                    requestedExpireTime, timerLockMaxExpireTime);
+                    lockExpiredTime_.load(), timerLockMaxExpireTime);
                 return;
             }
         }
