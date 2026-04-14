@@ -52,7 +52,9 @@
         "device_standby",
         "init",
         "power_manager",
-        "runtime_core"
+        "runtime_core",
+        "json",
+        "resource_management"
       ]
     },
     "build": {
