@@ -66,6 +66,8 @@ ohos_source_set("timeservice_proxy") {
     "ability_runtime:wantagent_innerkits",
     "hilog:libhilog",
     "ipc:ipc_single",
+    "json:nlohmann_json_static",
+    "resource_management:global_resmgr",
     "samgr:samgr_proxy",
   ]
   branch_protector_ret = "pac_ret"
