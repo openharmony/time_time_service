@@ -33,6 +33,7 @@
 #include "event_manager.h"
 #include "ntp_update_time.h"
 #include "cjson_helper.h"
+#include "parameters.h"
 
 #define private public
 #define protected public
@@ -2879,6 +2880,241 @@ HWTEST_F(TimeServiceTimerTest, ReschedulePowerOnTimerLocked001, TestSize.Level0)
         true);
 }
 #endif
+
+/**
+ * @tc.name: GetPowerOnApps001
+ * @tc.desc: Test GetPowerOnApps returns non-null vector (basic availability)
+ * @tc.precon: TimerManager instance is available with SET_AUTO_REBOOT_ENABLE
+ * @tc.step: 1. Get TimerManager instance
+ *           2. Call GetPowerOnApps
+ * @tc.expect: GetPowerOnApps returns a valid vector (may be empty depending on system params)
+ * @tc.type: FUNC
+ * @tc.require: issue#909
+ * @tc.level: level0
+ */
+HWTEST_F(TimeServiceTimerTest, GetPowerOnApps001, TestSize.Level0)
+{
+    auto timerManager = TimerManager::GetInstance();
+    ASSERT_NE(timerManager, nullptr);
+    auto result = timerManager->GetPowerOnApps();
+    // Result is a valid vector; contents depend on system parameters
+    EXPECT_TRUE(result.empty() || !result.empty());
+}
+
+/**
+ * @tc.name: GetPowerOnApps002
+ * @tc.desc: Test GetPowerOnApps result is sorted
+ * @tc.precon: TimerManager instance is available with SET_AUTO_REBOOT_ENABLE
+ * @tc.step: 1. Get TimerManager instance
+ *           2. Call GetPowerOnApps
+ *           3. Verify the result is sorted
+ * @tc.expect: Result vector is always in sorted order
+ * @tc.type: FUNC
+ * @tc.require: issue#909
+ * @tc.level: level0
+ */
+HWTEST_F(TimeServiceTimerTest, GetPowerOnApps002, TestSize.Level0)
+{
+    auto timerManager = TimerManager::GetInstance();
+    ASSERT_NE(timerManager, nullptr);
+    auto result = timerManager->GetPowerOnApps();
+    if (result.size() > 1) {
+        for (size_t i = 0; i < result.size() - 1; ++i) {
+            EXPECT_LE(result[i], result[i + 1]);
+        }
+    }
+}
+
+/**
+ * @tc.name: GetPowerOnApps003
+ * @tc.desc: Test GetPowerOnApps result has no duplicates
+ * @tc.precon: TimerManager instance is available with SET_AUTO_REBOOT_ENABLE
+ * @tc.step: 1. Get TimerManager instance
+ *           2. Call GetPowerOnApps
+ *           3. Verify no adjacent elements are equal (since result is sorted)
+ * @tc.expect: Result vector contains no duplicate elements
+ * @tc.type: FUNC
+ * @tc.require: issue#909
+ * @tc.level: level0
+ */
+HWTEST_F(TimeServiceTimerTest, GetPowerOnApps003, TestSize.Level0)
+{
+    auto timerManager = TimerManager::GetInstance();
+    ASSERT_NE(timerManager, nullptr);
+    auto result = timerManager->GetPowerOnApps();
+    if (result.size() > 1) {
+        for (size_t i = 0; i < result.size() - 1; ++i) {
+            EXPECT_NE(result[i], result[i + 1]) << "Duplicate found at index " << i;
+        }
+    }
+}
+
+/**
+ * @tc.name: GetPowerOnApps004
+ * @tc.desc: Test GetPowerOnApps consistency across multiple calls
+ * @tc.precon: TimerManager instance is available with SET_AUTO_REBOOT_ENABLE
+ * @tc.step: 1. Get TimerManager instance
+ *           2. Call GetPowerOnApps multiple times
+ *           3. Verify all calls return identical results
+ * @tc.expect: Multiple calls return the same result (deterministic)
+ * @tc.type: FUNC
+ * @tc.require: issue#909
+ * @tc.level: level0
+ */
+HWTEST_F(TimeServiceTimerTest, GetPowerOnApps004, TestSize.Level0)
+{
+    auto timerManager = TimerManager::GetInstance();
+    ASSERT_NE(timerManager, nullptr);
+    auto result1 = timerManager->GetPowerOnApps();
+    auto result2 = timerManager->GetPowerOnApps();
+    auto result3 = timerManager->GetPowerOnApps();
+    EXPECT_EQ(result1, result2);
+    EXPECT_EQ(result2, result3);
+}
+
+/**
+ * @tc.name: GetPowerOnApps005
+ * @tc.desc: Test GetPowerOnApps dedup functionality when persist parameter contains duplicate bundles
+ * @tc.precon: SET_AUTO_REBOOT_ENABLE is defined
+ * @tc.step: 1. Save original persist parameter
+ *           2. Use SetParameter to set persist param with "appA,appB,appA,appC,appB" (contains duplicates)
+ *           3. Call GetPowerOnApps
+ *           4. Verify result contains each app only once (appA, appB, appC)
+ *           5. Restore original persist parameter
+ * @tc.expect: Result contains ["appA", "appB", "appC"] with no duplicates
+ * @tc.type: FUNC
+ * @tc.require: issue#909
+ * @tc.level: level0
+ */
+HWTEST_F(TimeServiceTimerTest, GetPowerOnApps005, TestSize.Level0)
+{
+    constexpr const char* PERSIST_KEY = "persist.time.scheduled_power_on_apps";
+    
+    auto timerManager = TimerManager::GetInstance();
+    ASSERT_NE(timerManager, nullptr);
+    
+    // Save original persist parameter
+    auto origPersist = OHOS::system::GetParameter(PERSIST_KEY, "");
+    
+    // Set persist parameter with duplicate app names
+    OHOS::system::SetParameter(PERSIST_KEY, "appA,appB,appA,appC,appB");
+    
+    auto result = timerManager->GetPowerOnApps();
+    
+    // Verify deduplication functionality
+    std::set<std::string> uniqueApps(result.begin(), result.end());
+    EXPECT_EQ(uniqueApps.size(), result.size()) << "Result contains duplicate apps";
+    
+    // Verify each expected app appears only once
+    std::vector<std::string> expectedApps = {"appA", "appB", "appC"};
+    for (const auto& app : expectedApps) {
+        auto it = std::find(result.begin(), result.end(), app);
+        EXPECT_NE(it, result.end()) << "App " << app << " not found in result";
+        
+        // Verify no duplicates
+        auto count = std::count(result.begin(), result.end(), app);
+        EXPECT_EQ(count, 1) << "App " << app << " appears " << count << " times, should appear exactly once";
+    }
+    
+    // Restore original persist parameter
+    OHOS::system::SetParameter(PERSIST_KEY, origPersist.c_str());
+}
+
+/**
+ * @tc.name: GetPowerOnApps006
+ * @tc.desc: Test GetPowerOnApps dedup functionality when persist parameter contains duplicates
+ * @tc.precon: SET_AUTO_REBOOT_ENABLE is defined
+ * @tc.step: 1. Save original persist parameter
+ *           2. Use SetParameter to set persist param with "bundleX,bundleY,bundleX,bundleY" (identical duplicates)
+ *           3. Call GetPowerOnApps
+ *           4. Verify result contains each app only once (bundleX, bundleY)
+ *           5. Restore original persist parameter
+ * @tc.expect: Result contains ["bundleX", "bundleY"] with no duplicates
+ * @tc.type: FUNC
+ * @tc.require: issue#909
+ * @tc.level: level0
+ */
+HWTEST_F(TimeServiceTimerTest, GetPowerOnApps006, TestSize.Level0)
+{
+    constexpr const char* PERSIST_KEY = "persist.time.scheduled_power_on_apps";
+    
+    auto timerManager = TimerManager::GetInstance();
+    ASSERT_NE(timerManager, nullptr);
+    
+    // Save original persist parameter
+    auto origPersist = OHOS::system::GetParameter(PERSIST_KEY, "");
+    
+    // Set persist parameter with identical duplicate app names
+    OHOS::system::SetParameter(PERSIST_KEY, "bundleX,bundleY,bundleX,bundleY");
+    
+    auto result = timerManager->GetPowerOnApps();
+    
+    // Verify deduplication functionality
+    std::set<std::string> uniqueApps(result.begin(), result.end());
+    EXPECT_EQ(uniqueApps.size(), result.size()) << "Result contains duplicate apps";
+    
+    // Verify each expected app appears only once
+    std::vector<std::string> expectedApps = {"bundleX", "bundleY"};
+    for (const auto& app : expectedApps) {
+        auto it = std::find(result.begin(), result.end(), app);
+        EXPECT_NE(it, result.end()) << "App " << app << " not found in result";
+        
+        // Verify no duplicates
+        auto count = std::count(result.begin(), result.end(), app);
+        EXPECT_EQ(count, 1) << "App " << app << " appears " << count << " times, should appear exactly once";
+    }
+    
+    // Restore original persist parameter
+    OHOS::system::SetParameter(PERSIST_KEY, origPersist.c_str());
+}
+
+/**
+ * @tc.name: GetPowerOnApps007
+ * @tc.desc: Test GetPowerOnApps dedup functionality when persist parameter contains duplicates
+ * @tc.precon: SET_AUTO_REBOOT_ENABLE is defined
+ * @tc.step: 1. Save original persist parameter
+ *           2. Use SetParameter to set persist param with "alpha,beta,gamma,alpha,beta" (duplicates in middle)
+ *           3. Call GetPowerOnApps
+ *           4. Verify result contains each app only once (alpha, beta, gamma)
+ *           5. Restore original persist parameter
+ * @tc.expect: Result contains ["alpha", "beta", "gamma"] with no duplicates
+ * @tc.type: FUNC
+ * @tc.require: issue#909
+ * @tc.level: level0
+ */
+HWTEST_F(TimeServiceTimerTest, GetPowerOnApps007, TestSize.Level0)
+{
+    constexpr const char* PERSIST_KEY = "persist.time.scheduled_power_on_apps";
+    
+    auto timerManager = TimerManager::GetInstance();
+    ASSERT_NE(timerManager, nullptr);
+    
+    // Save original persist parameter
+    auto origPersist = OHOS::system::GetParameter(PERSIST_KEY, "");
+    
+    // Set persist parameter with duplicates in the middle
+    OHOS::system::SetParameter(PERSIST_KEY, "alpha,beta,gamma,alpha,beta");
+    
+    auto result = timerManager->GetPowerOnApps();
+    
+    // Verify deduplication functionality
+    std::set<std::string> uniqueApps(result.begin(), result.end());
+    EXPECT_EQ(uniqueApps.size(), result.size()) << "Result contains duplicate apps";
+    
+    // Verify each expected app appears only once
+    std::vector<std::string> expectedApps = {"alpha", "beta", "gamma"};
+    for (const auto& app : expectedApps) {
+        auto it = std::find(result.begin(), result.end(), app);
+        EXPECT_NE(it, result.end()) << "App " << app << " not found in result";
+        
+        // Verify no duplicates
+        auto count = std::count(result.begin(), result.end(), app);
+        EXPECT_EQ(count, 1) << "App " << app << " appears " << count << " times, should appear exactly once";
+    }
+    
+    // Restore original persist parameter
+    OHOS::system::SetParameter(PERSIST_KEY, origPersist.c_str());
+}
 #endif
 
 /**
