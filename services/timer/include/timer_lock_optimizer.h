@@ -19,12 +19,14 @@
 #ifdef RUNNING_LOCK_OPTIMIZE
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <set>
 #include <string>
 #include <vector>
 
+#include "want_agent.h"
 #include "want_agent_constant.h"
 
 namespace OHOS {
@@ -42,11 +44,11 @@ public:
     explicit TimerLockOptimizer(TimerManager* manager);
     ~TimerLockOptimizer() = default;
 
+    // Check if the operation type requires ability start (needs longer lock duration)
+    bool IsAbilityStartingOperation(WantAgentConstant::OperationType operType);
+
     // Initialize app state observer and query current running apps
     void Init();
-
-    // Ensure initialized (lazy initialization)
-    void EnsureInitialized();
 
     // Update app running state and recalculate lock time if needed
     void UpdateRunningApps(const std::string& bundleName, bool isRunning);
@@ -61,9 +63,14 @@ public:
     // Recalculate lock time when app starts or notification fails
     void RecalcLockForBundle(const std::string& bundleName);
 
-    // Get the maximum lock expiration time from lockInfos_
-    // Returns 0 if lockInfos_ is empty
-    int64_t GetMaxLockExpireTime();
+    // Get current timer lock expire time
+    int64_t GetTimerLockExpireTime() const { return timerLockExpireTime_.load(); }
+
+    // Get bundleName from cache by timerId (returns empty string if not found)
+    std::string GetBundleNameFromCache(uint64_t timerId) { return targetBundleNameCache_[timerId]; }
+
+    // Clear bundleName cache after timer delivery completes
+    void ClearBundleNameCache() { targetBundleNameCache_.clear(); }
 
 private:
     struct TimerLockInfo {
@@ -78,12 +85,26 @@ private:
     void MergeNewTimers(const std::vector<std::shared_ptr<TimerInfo>>& triggerList, int64_t bootTime);
     void SortAndDeduplicate(int64_t bootTime);
 
-    // Check if the operation type requires ability start (needs longer lock duration)
-    bool IsAbilityStartingOperation(WantAgentConstant::OperationType operType);
+    // Internal helper to acquire running lock with max expire time comparison
+    void AcquireRunningLockInternal(int64_t expireTime, int64_t bootTime);
+
+    // Extract bundleName from WantAgent
+    // Returns empty string if want is null or not ability-starting operation
+    std::string ExtractBundleNameFromWantAgent(const std::shared_ptr<WantAgent>& wantAgent);
+
+    // Get target bundleName from WantAgent (the app to be started, not the creator)
+    // Returns empty string for non-ability-starting operations (SEND_COMMON_EVENT, UNKNOWN_TYPE)
+    // When want == nullptr (multi-user scenario), attempts to get want from database
+    std::string GetTargetBundleName(const std::shared_ptr<TimerInfo>& timer);
+
+    // Get target bundleName in multi-user scenario when want == nullptr
+    // Retrieves want from database and extracts bundleName
+    // Returns empty string if failed to retrieve
+    std::string GetBundleNameMultiUser(const std::shared_ptr<TimerInfo>& timer);
 
     TimerManager* const manager_;
 
-    // Initialization flag for lazy initialization
+    // Initialization flag
     std::atomic<bool> isInitialized_{false};
 
     // Running apps tracking
@@ -93,6 +114,14 @@ private:
     // Lock info collection
     std::vector<TimerLockInfo> lockInfos_;
     std::mutex lockInfosMutex_;
+
+    // Max timer lock expire time (nanoseconds since boot)
+    std::atomic<int64_t> timerLockExpireTime_{0};
+
+    // Cache for target bundleName from WantAgent (timerId -> targetBundleName)
+    // Read/write operations are performed in the same thread (TimerLooper thread)
+    // No concurrent access scenarios, no lock required
+    std::map<uint64_t, std::string> targetBundleNameCache_;
 };
 
 } // namespace MiscServices
