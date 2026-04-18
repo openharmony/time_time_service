@@ -57,9 +57,8 @@ std::shared_ptr<IAuthorizationClient> TimePermission::GetAuthorizationClient()
 const std::string TimePermission::setTime = "ohos.permission.SET_TIME";
 const std::string TimePermission::setTimeZone = "ohos.permission.SET_TIME_ZONE";
 const std::string TimePermission::setTimePrivilege = "ohos.privilege.modify_system_time";
-const std::vector<std::string> TimePermission::exemptedBundles_ = {
-    "telephony", "CollaborationFw", "edm", "acts", "example",
-    "test", "push_manager_service", "timer"};
+const std::vector<std::string> TimePermission::checkedBundles_ = {
+    "settings"};
 
 bool TimePermission::CheckCallingPermission(const std::string &permissionName)
 {
@@ -93,7 +92,7 @@ bool TimePermission::CheckSystemUidCallingPermission(uint64_t tokenId)
     return Security::AccessToken::TokenIdKit::IsSystemAppByFullTokenID(tokenId);
 }
 
-bool TimePermission::IsExemptedBundle()
+bool TimePermission::IsAppNeedsAuthCheck()
 {
     std::string bundleOrProcessName = TimeFileUtils::GetBundleNameByTokenID(IPCSkeleton::GetCallingTokenID());
     if (bundleOrProcessName.empty()) {
@@ -103,8 +102,8 @@ bool TimePermission::IsExemptedBundle()
         return false;
     }
 
-    for (const auto& exempted : exemptedBundles_) {
-        if (bundleOrProcessName.find(exempted) != std::string::npos) {
+    for (const auto& checked : checkedBundles_) {
+        if (bundleOrProcessName == checked) {
             return true;
         }
     }
@@ -113,8 +112,8 @@ bool TimePermission::IsExemptedBundle()
 
 bool TimePermission::CheckAuthorization(const std::string &privilege)
 {
-    // 首先检查是否在豁免列表中
-    if (IsExemptedBundle()) {
+    // 仅检查列表中的应用需要进行权限校验
+    if (!IsAppNeedsAuthCheck()) {
         return true;
     }
 
