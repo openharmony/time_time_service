@@ -49,8 +49,8 @@ public:
     static bool CheckSystemUidCallingPermission(uint64_t tokenId);
     static bool CheckAuthorization(const std::string &privilege);
 
-    // 检查是否在豁免列表中
-    static bool IsExemptedBundle();
+    // 检查应用是否需要权限检查
+    static bool IsAppNeedsAuthCheck();
 
     // 用于测试的方法，允许注入自定义的 IAuthorizationClient 实现
     static void SetAuthorizationClient(std::shared_ptr<IAuthorizationClient> client);
@@ -63,8 +63,8 @@ private:
     static std::shared_ptr<IAuthorizationClient> authorizationClient_;
     static std::mutex authorizationClientMutex_;
 
-    // 豁免的 bundle 名称列表
-    static const std::vector<std::string> exemptedBundles_;
+    // 需要权限检查的 bundle 名称列表
+    static const std::vector<std::string> checkedBundles_;
 };
 } // namespace MiscServices
 } // namespace OHOS

@@ -105,198 +105,159 @@ HWTEST_F(TimePermissionTest, CheckCallingPermission001, TestSize.Level1)
 
 /**
 * @tc.name: CheckAuthorization001
-* @tc.desc: Test CheckAuthorization function with authorized and unauthorized scenarios using mock
+* @tc.desc: Test CheckAuthorization function returns true for applications not in the checked list
 * @tc.precon: Time permission service is available and accessible
 * @tc.step: 1. Create a mock authorization client
-*           2. Set mock to return authorized = true
-*           3. Call CheckAuthorization with setTimePrivilege
-*           4. Verify function returns true
-*           5. Set mock to return authorized = false
-*           6. Call CheckAuthorization again
-*           7. Verify function returns false
-* @tc.expect: Function returns correct authorization status based on mock
+*           2. Call CheckAuthorization with setTimePrivilege
+*           3. Since current process is not in the checked list, it should return true directly
+* @tc.expect: Function returns true for applications not in the checked list without calling AuthorizationClient
 * @tc.type: FUNC
 * @tc.require:
 * @tc.level: level1
 */
 HWTEST_F(TimePermissionTest, CheckAuthorization001, TestSize.Level1)
 {
-    // 创建 mock 对象
+    // 创建 mock 对象，即使设置为未授权也不影响结果
     auto mockClient = std::make_shared<MockAuthorizationClient>();
-
-    // 测试场景1：授权成功
-    mockClient->SetAuthorized(true);
+    mockClient->SetAuthorized(false);
     mockClient->SetErrCode(E_TIME_OK);
     TimePermission::SetAuthorizationClient(mockClient);
 
-    // Test with setTimePrivilege (ohos.privilege.modify_system_time)
+    // 当前测试进程不在检查列表中，直接放行返回 true
     bool ret1 = TimePermission::CheckAuthorization(TimePermission::setTimePrivilege);
     EXPECT_EQ(true, ret1);
-
-    // 测试场景2：授权失败
-    mockClient->SetAuthorized(false);
-    mockClient->SetErrCode(E_TIME_OK);
-    // mock 对象已注入，直接测试
-    bool ret2 = TimePermission::CheckAuthorization(TimePermission::setTimePrivilege);
-    EXPECT_EQ(false, ret2);
 }
 
 /**
 * @tc.name: CheckAuthorization002
-* @tc.desc: Test CheckAuthorization function with empty privilege string using mock
+* @tc.desc: Test CheckAuthorization returns true for apps not in the checked list
+*           regardless of privilege content
 * @tc.precon: Time permission service is available and accessible
 * @tc.step: 1. Create a mock authorization client
 *           2. Call CheckAuthorization with empty privilege string
-*           3. Verify function returns false (mock should not be called for empty)
-* @tc.expect: Function returns false for empty privilege string
+*           3. Verify function returns true (application not in the checked list bypasses check)
+* @tc.expect: Function returns true for applications not in the checked list even with empty privilege
 * @tc.type: FUNC
 * @tc.require:
 * @tc.level: level1
 */
 HWTEST_F(TimePermissionTest, CheckAuthorization002, TestSize.Level1)
 {
-    // 创建 mock 对象，设置为未授权（验证空字符串直接返回 false，不依赖 mock）
+    // 创建 mock 对象，设置为未授权
     auto mockClient = std::make_shared<MockAuthorizationClient>();
     mockClient->SetAuthorized(false);
     mockClient->SetErrCode(E_TIME_OK);
     TimePermission::SetAuthorizationClient(mockClient);
 
-    // 空字符串应该直接返回 false
+    // 当前测试进程不在检查列表中，直接放行，即使传入空字符串也返回 true
     bool ret = TimePermission::CheckAuthorization("");
-    EXPECT_EQ(false, ret);
+    EXPECT_EQ(true, ret);
 }
 
 /**
 * @tc.name: CheckAuthorizationMock001
-* @tc.desc: Test CheckAuthorization function with authorized privilege using mock client
+* @tc.desc: Test CheckAuthorization returns true for applications not in the checked list without hitting mock
 * @tc.precon: Time permission service is available and accessible
-* @tc.step: 1. Create a mock authorization client
-*           2. Set expectation for CheckAuthorization method to return E_TIME_OK and isAuthorized = true
-*           3. Inject the mock client into TimePermission
-*           4. Call CheckAuthorization with valid privilege (setTimePrivilege)
-*           5. Verify function returns true indicating authorization success
-* @tc.expect: Function returns true for authorized privilege
+* @tc.step: 1. Create a mock authorization client set to authorized
+*           2. Inject the mock client into TimePermission
+*           3. Call CheckAuthorization with valid privilege
+*           4. Verify function returns true (application not in the checked list bypasses mock)
+* @tc.expect: Function returns true for applications not in the checked list
 * @tc.type: FUNC
 * @tc.require:
 * @tc.level: level1
 */
 HWTEST_F(TimePermissionTest, CheckAuthorizationMock001, TestSize.Level1)
 {
-    // 创建一个 mock 对象
     auto mockClient = std::make_shared<MockAuthorizationClient>();
-
-    // 设置期望：当调用 CheckAuthorization 时，返回 E_TIME_OK 和 isAuthorized = true
     mockClient->SetAuthorized(true);
     mockClient->SetErrCode(E_TIME_OK);
-
-    // 注入 mock 对象
     TimePermission::SetAuthorizationClient(mockClient);
 
-    // 测试 CheckAuthorization 函数，使用 setTimePrivilege (ohos.privilege.modify_system_time)
     bool ret = TimePermission::CheckAuthorization(TimePermission::setTimePrivilege);
-
-    // 验证结果
     EXPECT_EQ(true, ret);
 }
 
 /**
 * @tc.name: CheckAuthorizationMock002
-* @tc.desc: Test CheckAuthorization function with unauthorized privilege using mock client
+* @tc.desc: Test CheckAuthorization returns true for apps not in the checked list
+*           even when mock is set to unauthorized
 * @tc.precon: Time permission service is available and accessible
-* @tc.step: 1. Create a mock authorization client
-*           2. Set expectation for CheckAuthorization method to return E_TIME_OK and isAuthorized = false
-*           3. Inject the mock client into TimePermission
-*           4. Call CheckAuthorization with valid privilege (setTimePrivilege)
-*           5. Verify function returns false indicating authorization failure
-* @tc.expect: Function returns false for unauthorized privilege
+* @tc.step: 1. Create a mock authorization client set to unauthorized
+*           2. Inject the mock client into TimePermission
+*           3. Call CheckAuthorization with valid privilege
+*           4. Verify function returns true (application not in the checked list bypasses mock)
+* @tc.expect: Function returns true for applications not in the checked list regardless of mock authorization status
 * @tc.type: FUNC
 * @tc.require:
 * @tc.level: level1
 */
 HWTEST_F(TimePermissionTest, CheckAuthorizationMock002, TestSize.Level1)
 {
-    // 创建一个 mock 对象
     auto mockClient = std::make_shared<MockAuthorizationClient>();
-
-    // 设置期望：当调用 CheckAuthorization 时，返回 E_TIME_OK 和 isAuthorized = false
     mockClient->SetAuthorized(false);
     mockClient->SetErrCode(E_TIME_OK);
-
-    // 注入 mock 对象
     TimePermission::SetAuthorizationClient(mockClient);
 
-    // 测试 CheckAuthorization 函数，使用 setTimePrivilege (ohos.privilege.modify_system_time)
     bool ret = TimePermission::CheckAuthorization(TimePermission::setTimePrivilege);
-
-    // 验证结果
-    EXPECT_EQ(false, ret);
+    EXPECT_EQ(true, ret);
 }
 
 /**
 * @tc.name: CheckAuthorizationMock003
-* @tc.desc: Test CheckAuthorization function with error code using mock client
+* @tc.desc: Test CheckAuthorization returns true for apps not in the checked list
+*           even when mock returns error code
 * @tc.precon: Time permission service is available and accessible
-* @tc.step: 1. Create a mock authorization client
-*           2. Set expectation for CheckAuthorization method to return E_TIME_NO_PERMISSION
-*           3. Inject the mock client into TimePermission
-*           4. Call CheckAuthorization with valid privilege (setTimePrivilege)
-*           5. Verify function returns false indicating authorization failure
-* @tc.expect: Function returns false when CheckAuthorization returns an error code
+* @tc.step: 1. Create a mock authorization client set to return error code
+*           2. Inject the mock client into TimePermission
+*           3. Call CheckAuthorization with valid privilege
+*           4. Verify function returns true (application not in the checked list bypasses mock)
+* @tc.expect: Function returns true for applications not in the checked list regardless of mock error code
 * @tc.type: FUNC
 * @tc.require:
 * @tc.level: level1
 */
 HWTEST_F(TimePermissionTest, CheckAuthorizationMock003, TestSize.Level1)
 {
-    // 创建一个 mock 对象
     auto mockClient = std::make_shared<MockAuthorizationClient>();
-
-    // 设置期望：当调用 CheckAuthorization 时，返回 E_TIME_NO_PERMISSION
     mockClient->SetAuthorized(true);
     mockClient->SetErrCode(E_TIME_NO_PERMISSION);
-
-    // 注入 mock 对象
     TimePermission::SetAuthorizationClient(mockClient);
 
-    // 测试 CheckAuthorization 函数，使用 setTimePrivilege (ohos.privilege.modify_system_time)
     bool ret = TimePermission::CheckAuthorization(TimePermission::setTimePrivilege);
-
-    // 验证结果
-    EXPECT_EQ(false, ret);
+    EXPECT_EQ(true, ret);
 }
 
 /**
-* @tc.name: IsExemptedBundle001
-* @tc.desc: Test IsExemptedBundle function can be called without crash
+* @tc.name: IsAppNeedsAuthCheck001
+* @tc.desc: Test IsAppNeedsAuthCheck function can be called without crash
 * @tc.precon: Time permission service is available and accessible
-* @tc.step: 1. Call IsExemptedBundle function
+* @tc.step: 1. Call IsAppNeedsAuthCheck function
 *           2. Verify function returns boolean value
 * @tc.expect: Function returns false for non-HAP token (current process)
 * @tc.type: FUNC
 * @tc.require:
 * @tc.level: level1
 */
-HWTEST_F(TimePermissionTest, IsExemptedBundle001, TestSize.Level1)
+HWTEST_F(TimePermissionTest, IsAppNeedsAuthCheck001, TestSize.Level1)
 {
-    // 测试 IsExemptedBundle 可以被调用且不崩溃
-    // 当前测试进程不是 HAP token，应该返回 false
-    EXPECT_NO_FATAL_FAILURE(TimePermission::IsExemptedBundle());
-    bool ret = TimePermission::IsExemptedBundle();
+    bool ret = TimePermission::IsAppNeedsAuthCheck();
     EXPECT_EQ(false, ret);
 }
 
 /**
-* @tc.name: CheckAuthorizationWithExemptedBundle001
-* @tc.desc: Test CheckAuthorization function with exempted bundle list
+* @tc.name: CheckAuthorizationWithCheckedApp001
+* @tc.desc: Test CheckAuthorization function with application not in the checked list bypasses authorization check
 * @tc.precon: Time permission service is available and accessible
-* @tc.step: 1. Call CheckAuthorization with mock client set to fail
-*           2. Since current process is not in exempted list, authorization should fail
-* @tc.expect: Function returns false when not exempted and authorization fails
+* @tc.step: 1. Create a mock authorization client set to fail
+*           2. Call CheckAuthorization for an application not in the checked list
+*           3. Since current process is not in the checked list, authorization should pass directly
+* @tc.expect: Function returns true for applications not in the checked list without calling AuthorizationClient
 * @tc.type: FUNC
 * @tc.require:
 * @tc.level: level1
 */
-HWTEST_F(TimePermissionTest, CheckAuthorizationWithExemptedBundle001, TestSize.Level1)
+HWTEST_F(TimePermissionTest, CheckAuthorizationWithCheckedApp001, TestSize.Level1)
 {
     // 创建一个 mock 对象，设置为未授权
     auto mockClient = std::make_shared<MockAuthorizationClient>();
@@ -304,13 +265,11 @@ HWTEST_F(TimePermissionTest, CheckAuthorizationWithExemptedBundle001, TestSize.L
     mockClient->SetErrCode(E_TIME_OK);
     TimePermission::SetAuthorizationClient(mockClient);
 
-    // 对于非豁免的非 HAP 进程，CheckAuthorization 应该调用 mock 并返回 false
-    // 如果当前是 HAP 且不在豁免列表中，也应该返回 false
-    // 使用 setTimePrivilege (ohos.privilege.modify_system_time) 进行测试
+    // 当前测试进程不在检查列表中，CheckAuthorization 应该直接返回 true
+    // 不会调用 mock 的 AuthorizationClient
     bool ret = TimePermission::CheckAuthorization(TimePermission::setTimePrivilege);
 
-    // 当前测试进程不是豁免 bundle，且 mock 返回未授权，所以应该返回 false
-    EXPECT_EQ(false, ret);
+    EXPECT_EQ(true, ret);
 }
 
 }
