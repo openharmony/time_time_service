@@ -15,6 +15,7 @@
 
 #include "commands.h"
 
+#include <cstring>
 #include <iostream>
 
 #include "time_service_client.h"
@@ -39,97 +40,143 @@ static sptr<TimeServiceClient> GetTimeClient()
 }
 
 // get-wall-time command
-int CmdGetWallTime()
+int CmdGetWallTime(int argc, char** argv)
 {
+    (void)argc;
+    (void)argv;
+
     auto client = GetTimeClient();
     if (client == nullptr) {
-        return OutputError("E_CLIENT_INIT", "Failed to initialize TimeServiceClient",
+        return OutputError("ERR_CLIENT_INIT",
+                           "Failed to initialize TimeServiceClient",
                            "Check if time_service system ability is running");
     }
+
     int64_t time = 0;
     int32_t ret = client->GetWallTimeMs(time);
     if (ret != 0) {
-        return OutputError("E_GET_WALL_TIME", "Failed to get wall time",
+        return OutputError("ERR_GET_WALL_TIME",
+                           "Failed to get wall time",
                            "Check system time service status and permissions");
     }
-    return OutputSuccess("time", std::to_string(time), "ms");
+
+    json data;
+    data["time"] = time;
+    data["unit"] = "ms";
+    return OutputSuccess(data);
 }
 
 // get-boot-time command
-int CmdGetBootTime()
+int CmdGetBootTime(int argc, char** argv)
 {
+    (void)argc;
+    (void)argv;
+
     auto client = GetTimeClient();
     if (client == nullptr) {
-        return OutputError("E_CLIENT_INIT", "Failed to initialize TimeServiceClient",
+        return OutputError("ERR_CLIENT_INIT",
+                           "Failed to initialize TimeServiceClient",
                            "Check if time_service system ability is running");
     }
+
     int64_t time = 0;
     int32_t ret = client->GetBootTimeMs(time);
     if (ret != 0) {
-        return OutputError("E_GET_BOOT_TIME", "Failed to get boot time",
+        return OutputError("ERR_GET_BOOT_TIME",
+                           "Failed to get boot time",
                            "Check system time service status");
     }
-    return OutputSuccess("time", std::to_string(time), "ms");
+
+    json data;
+    data["time"] = time;
+    data["unit"] = "ms";
+    return OutputSuccess(data);
 }
 
 // get-monotonic-time command
-int CmdGetMonotonicTime()
+int CmdGetMonotonicTime(int argc, char** argv)
 {
+    (void)argc;
+    (void)argv;
+
     auto client = GetTimeClient();
     if (client == nullptr) {
-        return OutputError("E_CLIENT_INIT", "Failed to initialize TimeServiceClient",
+        return OutputError("ERR_CLIENT_INIT",
+                           "Failed to initialize TimeServiceClient",
                            "Check if time_service system ability is running");
     }
+
     int64_t time = 0;
     int32_t ret = client->GetMonotonicTimeMs(time);
     if (ret != 0) {
-        return OutputError("E_GET_MONOTONIC_TIME", "Failed to get monotonic time",
+        return OutputError("ERR_GET_MONOTONIC_TIME",
+                           "Failed to get monotonic time",
                            "Check system time service status");
     }
-    return OutputSuccess("time", std::to_string(time), "ms");
+
+    json data;
+    data["time"] = time;
+    data["unit"] = "ms";
+    return OutputSuccess(data);
 }
 
 // get-time-zone command
-int CmdGetTimeZone()
+int CmdGetTimeZone(int argc, char** argv)
 {
+    (void)argc;
+    (void)argv;
+
     auto client = GetTimeClient();
     if (client == nullptr) {
-        return OutputError("E_CLIENT_INIT", "Failed to initialize TimeServiceClient",
+        return OutputError("ERR_CLIENT_INIT",
+                           "Failed to initialize TimeServiceClient",
                            "Check if time_service system ability is running");
     }
+
     std::string timezone;
     int32_t ret = client->GetTimeZone(timezone);
     if (ret != 0) {
-        return OutputError("E_GET_TIME_ZONE", "Failed to get time zone",
+        return OutputError("ERR_GET_TIME_ZONE",
+                           "Failed to get time zone",
                            "Check system time service status");
     }
-    return OutputSuccess("timezone", timezone, "");
+
+    json data;
+    data["timezone"] = timezone;
+    return OutputSuccess(data);
 }
 
 // help command
-int CmdHelp()
+int CmdHelp(int argc, char** argv)
 {
+    (void)argc;
+    (void)argv;
+
     std::cerr << TOOL_NAME << " - Query system time information\n\n";
     std::cerr << "Usage: " << TOOL_NAME << " <command>\n\n";
     std::cerr << "Commands:\n";
     for (const auto& pair : g_commands) {
-        if (strcmp(pair.first.c_str(), "--help") != 0 &&
-            strcmp(pair.first.c_str(), "--version") != 0) {
+        if (std::strcmp(pair.first.c_str(), "--help") != 0 &&
+            std::strcmp(pair.first.c_str(), "--version") != 0) {
             std::cerr << "  " << pair.first << " - " << pair.second.description << std::endl;
         }
     }
     std::cerr << "\nOptions:\n";
-    std::cerr << "  --help     Show this help message\n";
+    std::cerr << "  --help     Show help message\n";
     std::cerr << "  --version  Show version information\n";
     return 0;
 }
 
 // version command
-int CmdVersion()
+int CmdVersion(int argc, char** argv)
 {
-    std::cout << "{\"success\":true,\"data\":{\"version\":\"" << VERSION << "\","
-              << "\"tool\":\"" << TOOL_NAME << "\"}}" << std::endl;
-    return 0;
+    (void)argc;
+    (void)argv;
+
+    json data;
+    data["version"] = VERSION;
+    data["tool"] = TOOL_NAME;
+    return OutputSuccess(data);
 }
 
 // Initialize command table

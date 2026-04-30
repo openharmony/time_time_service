@@ -17,15 +17,19 @@
 #define OHOS_QUERY_TIME_UTILS_H
 
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <string>
 
 namespace OHOS {
 namespace QueryTime {
 
+using json = nlohmann::json;
+
 // Version information
 extern const char* VERSION;
 extern const char* TOOL_NAME;
 
+// Log output to stderr
 inline void CLI_LOG(const std::string& msg)
 {
     std::cerr << msg << std::endl;
@@ -36,10 +40,10 @@ inline void CLI_ERROR(const std::string& msg)
     std::cerr << "[ERROR] " << msg << std::endl;
 }
 
-// Success response
-int OutputSuccess(const std::string& dataField, const std::string& dataValue, const std::string& unit = "");
+// Success response - output JSON with type=result, status=success
+int OutputSuccess(const json& data);
 
-// Error response
+// Error response - output JSON with type=result, status=failed
 int OutputError(const std::string& code, const std::string& message, const std::string& suggestion);
 
 } // namespace QueryTime
