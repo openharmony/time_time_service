@@ -108,6 +108,8 @@
         "//base/time/time_service/test/unittest/service_test:unittest",
         "//base/time/time_service/test/unittest/js_test:unittest",
         "//base/time/time_service/test/unittest/native_test:unittest",
+        "//base/time/time_service/test/fuzztest/timesetname_fuzzer:fuzztest",
+        "//base/time/time_service/test/fuzztest/timesetdisposable_fuzzer:fuzztest",
         "//base/time/time_service/test/fuzztest/time_fuzzer:fuzztest"
       ]
     }
