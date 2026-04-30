@@ -13,7 +13,7 @@
 
 import("//build/ohos.gni")
 
-ohos_executable("ohos-query-time") {
+ohos_executable("ohos-queryTime") {
   sources = [
     "src/main.cpp",
     "src/commands.cpp",

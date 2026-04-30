@@ -23,8 +23,8 @@
 namespace OHOS {
 namespace QueryTime {
 
-// Command handler type - no parameter version
-using CommandHandler = std::function<int()>;
+// Command handler type with argc/argv
+using CommandHandler = std::function<int(int, char**)>;
 
 // Command table structure
 struct Command {
@@ -41,13 +41,13 @@ inline void RegisterCmd(const std::string& name, const char* desc, const Command
     g_commands[name] = {desc, handler};
 }
 
-// Command implementations - no parameter
-int CmdGetWallTime();
-int CmdGetBootTime();
-int CmdGetMonotonicTime();
-int CmdGetTimeZone();
-int CmdHelp();
-int CmdVersion();
+// Command implementations
+int CmdGetWallTime(int argc, char** argv);
+int CmdGetBootTime(int argc, char** argv);
+int CmdGetMonotonicTime(int argc, char** argv);
+int CmdGetTimeZone(int argc, char** argv);
+int CmdHelp(int argc, char** argv);
+int CmdVersion(int argc, char** argv);
 
 // Initialize command table
 void InitCommands();
