@@ -28,6 +28,7 @@ static void PrintUsage(const char* prog)
 
 constexpr int MIN_ARGC = 2;
 constexpr int COMMAND_ARG_INDEX = 1;
+constexpr int CMD_NAME_ARG_COUNT = 2;  // Number of args to skip (program name + command name)
 
 int main(int argc, char* argv[])
 {
@@ -48,6 +49,6 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    // Directly invoke command handler without parameters
-    return it->second.handler();
+    // Invoke command handler with remaining parameters
+    return it->second.handler(argc - CMD_NAME_ARG_COUNT, argv + CMD_NAME_ARG_COUNT);
 }
