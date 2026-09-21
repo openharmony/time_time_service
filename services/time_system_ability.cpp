@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 #include "time_system_ability.h"
+#include "parse_rtc_id.h"
 
 #include <dirent.h>
 #include <linux/rtc.h>
@@ -892,15 +893,11 @@ int TimeSystemAbility::GetWallClockRtcId()
             continue;
         }
         auto rtcIdStr = name.substr(s.length());
-        // The suffix must be non-empty and all digits; otherwise skip it to prevent
-        // std::stoul from throwing and crashing the process.
-        if (rtcIdStr.empty() ||
-            std::find_if(rtcIdStr.begin(), rtcIdStr.end(),
-                         [](unsigned char c) { return !std::isdigit(c); }) != rtcIdStr.end()) {
+        // Digits-only still overflows stoul; parse with from_chars and skip bad ids.
+        if (!ParseRtcId(rtcIdStr, rtcId)) {
             TIME_HILOGW(TIME_MODULE_SERVICE, "invalid rtc name %{public}s, skip", name.c_str());
             continue;
         }
-        rtcId = std::stoul(rtcIdStr);
         if (CheckRtc(rtcPath, rtcId)) {
             TIME_HILOGD(TIME_MODULE_SERVICE, "found wall clock rtc %{public}ld", rtcId);
             return rtcId;
